@@ -1,0 +1,15 @@
+[package]
+name = "cut-tr"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "cut"
+path = "src/cut.rs"
+
+[[bin]]
+name = "tr"
+path = "src/tr.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
