@@ -24,3 +24,29 @@ pub fn human_size(bytes: u64) -> String {
 pub fn line_number(num: usize) -> String {
     format!("{:6}\t", num)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn human_size_bytes() {
+        assert_eq!(human_size(0), "0B");
+        assert_eq!(human_size(512), "512B");
+    }
+
+    #[test]
+    fn human_size_k_m_g_t() {
+        assert_eq!(human_size(1024), "1.0K");
+        assert_eq!(human_size(1536), "1.5K");
+        assert_eq!(human_size(1024 * 1024), "1.0M");
+        assert_eq!(human_size(1024_u64.pow(3)), "1.0G");
+        assert_eq!(human_size(1024_u64.pow(4)), "1.0T");
+    }
+
+    #[test]
+    fn line_number_padding() {
+        assert_eq!(line_number(1), "     1\t");
+        assert_eq!(line_number(123456), "123456\t");
+    }
+}
