@@ -1,3 +1,6 @@
 target/
 *.exe
 *.pdb
+large_copy.dat
+large_source.dat
+cat-test
