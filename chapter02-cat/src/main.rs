@@ -3,9 +3,10 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, stdin, Write};
 
 /// Rust로 만든 cat 명령어
+/// 파일 내용을 표준 출력에 표시합니다
 #[derive(Parser)]
 #[command(name = "cat")]
-#[command(version, about = "파일 내용을 표준 출력에 표시합니다")]
+#[command(version, about = "Rust로 만든 cat 명령어")]
 struct Cli {
     /// 모든 줄에 번호를 매깁니다
     #[arg(short = 'n')]
