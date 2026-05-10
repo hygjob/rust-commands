@@ -1,3 +1,4 @@
+// clap CLI, rename 우선·교차 디스크 시 복사+삭제
 use clap::Parser;
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -22,6 +23,7 @@ struct Cli {
     paths: Vec<String>,
 }
 
+/// `-i`: 덮어쓸 대상이 있을 때만 확인 (cp와 동일 패턴).
 fn confirm_overwrite(path: &str) -> bool {
     eprint!("mv: '{}'를 덮어쓰시겠습니까? (y/n) ", path);
     io::stderr().flush().unwrap();
@@ -33,6 +35,7 @@ fn confirm_overwrite(path: &str) -> bool {
     answer.trim().to_lowercase() == "y" || answer.trim().to_lowercase() == "yes"
 }
 
+/// 먼저 `rename`; 실패 시(보통 다른 마운트) 디렉터리는 재귀 복사 후 원본 삭제, 파일은 copy+remove.
 fn move_item(src: &Path, dst: &Path, cli: &Cli) -> io::Result<()> {
     if dst.exists() && cli.interactive {
         if !confirm_overwrite(&dst.display().to_string()) {
@@ -65,6 +68,7 @@ fn move_item(src: &Path, dst: &Path, cli: &Cli) -> io::Result<()> {
     }
 }
 
+/// `rename`이 안 될 때 디렉터리 통째 이동용: 구조를 유지하며 복사합니다.
 fn copy_dir_recursive(src: &Path, dst: &Path) -> io::Result<()> {
     fs::create_dir_all(dst)?;
 

@@ -1,3 +1,4 @@
+// 여러 유닉스 스타일 도구를 하나의 바이너리 서브커맨드로 묶습니다. `human_size`는 라이브러리 크레이트에서.
 use clap::{Parser, Subcommand};
 use std::io;
 use std::fs::{self, File};
@@ -6,7 +7,7 @@ use std::collections::VecDeque;
 use std::path::{PathBuf};
 use rustbox_lib::format::human_size;
 
-
+/// 최상위 CLI; 실제 처리는 `Commands` 분기와 아래 `cmd_*` 함수가 담당합니다.
 #[derive(Parser)]
 #[command(name = "rustbox")]
 #[command(version, about = "Rust로 만든 유닉스 커맨드 모음")]
@@ -139,6 +140,7 @@ enum Commands {
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
+    // `find`·`ls`는 내부에서 직접 출력하며, 나머지는 `io::Result`로 오류를 전달합니다.
     match cli.command {
         Commands::Echo { no_newline, escape, text } => {
             cmd_echo(no_newline, escape, text)?;
@@ -169,11 +171,9 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-
-///
-
 // ── echo ──────────────────────────────────────────
 
+/// `-e`: `\n` `\t` 등 백슬래시 시퀀스를 실제 제어 문자로 바꿉니다.
 fn process_escapes(s: &str) -> String {
     let mut result = String::new();
     let mut chars = s.chars().peekable();
@@ -195,6 +195,7 @@ fn process_escapes(s: &str) -> String {
     result
 }
 
+/// 인자 공백 결합 후 `-e`/`-n` 적용. 마지막에 줄바꿈 생략 가능.
 fn cmd_echo(no_newline: bool, escape: bool, text: Vec<String>) -> io::Result<()> {
     let text = text.join(" ");
     let output = if escape { process_escapes(&text) } else { text };
@@ -205,6 +206,7 @@ fn cmd_echo(no_newline: bool, escape: bool, text: Vec<String>) -> io::Result<()>
 
 // ── cat ──────────────────────────────────────────
 
+/// `-n`/`-b`/`-s` 조합으로 한 줄씩 표준 출력에 보냅니다.
 fn cat_lines<R: BufRead>(
     reader: &mut R, number: bool, number_nonblank: bool, squeeze_blank: bool,
 ) -> io::Result<()> {
@@ -230,6 +232,7 @@ fn cat_lines<R: BufRead>(
     Ok(())
 }
 
+/// 파일 목록이 비면 stdin, 아니면 순서대로 열어 `cat_lines`에 넘깁니다.
 fn cmd_cat(number: bool, number_nonblank: bool, squeeze_blank: bool, files: Vec<String>) -> io::Result<()> {
     if files.is_empty() {
         let stdin = stdin();
@@ -251,6 +254,7 @@ fn cmd_cat(number: bool, number_nonblank: bool, squeeze_blank: bool, files: Vec<
 
 // ── head ──────────────────────────────────────────
 
+/// 앞에서부터 `n`줄만 출력합니다.
 fn head_lines<R: BufRead>(reader: &mut R, n: usize) -> io::Result<()> {
     for (i, line) in reader.lines().enumerate() {
         if i >= n { break; }
@@ -260,6 +264,7 @@ fn head_lines<R: BufRead>(reader: &mut R, n: usize) -> io::Result<()> {
     Ok(())
 }
 
+/// `-c`: 앞에서부터 최대 `n`바이트만 stdout으로 복사합니다.
 fn head_bytes<R: Read>(reader: &mut R, n: usize) -> io::Result<()> {
     let mut handle = reader.take(n as u64);
     let mut stdout = io::stdout();
@@ -267,6 +272,7 @@ fn head_bytes<R: Read>(reader: &mut R, n: usize) -> io::Result<()> {
     Ok(())
 }
 
+/// stdin 또는 여러 파일; 복수 파일이면 `==> path <==` 헤더. `-c`면 바이트, 아니면 줄.
 fn cmd_head(lines: usize, bytes: Option<usize>, files: Vec<PathBuf>) -> io::Result<()> {
     if files.is_empty() {
         let stdin = stdin();
@@ -294,6 +300,7 @@ fn cmd_head(lines: usize, bytes: Option<usize>, files: Vec<PathBuf>) -> io::Resu
 
 // ── tail ──────────────────────────────────────────
 
+/// 슬라이딩 `VecDeque`로 마지막 `n`줄만 유지합니다.
 fn tail_lines<R: BufRead>(reader: &mut R, n: usize) -> io::Result<()> {
     let mut buf: VecDeque<String> = VecDeque::with_capacity(n);
     for line in reader.lines() {
@@ -305,6 +312,7 @@ fn tail_lines<R: BufRead>(reader: &mut R, n: usize) -> io::Result<()> {
     Ok(())
 }
 
+/// stdin은 줄 단위만. 파일+`-c`는 끝에서 `seek`해 마지막 n바이트, 아니면 `tail_lines`.
 fn cmd_tail(lines: usize, bytes: Option<usize>, files: Vec<PathBuf>) -> io::Result<()> {
     if files.is_empty() {
         let stdin = stdin();
@@ -335,9 +343,11 @@ fn cmd_tail(lines: usize, bytes: Option<usize>, files: Vec<PathBuf>) -> io::Resu
 
 // ── grep ──────────────────────────────────────────
 
+// 이 섹션만 색·정귀식 크레이트 사용 (파일 상단 import 그룹과 분리)
 use colored::*;
 use regex::{Regex, RegexBuilder};
 
+/// 일치 구간을 터미널에서 빨간 굵게 표시합니다.
 fn highlight_matches(line: &str, re: &Regex) -> String {
     let mut result = String::new();
     let mut last_end = 0;
@@ -350,6 +360,7 @@ fn highlight_matches(line: &str, re: &Regex) -> String {
     result
 }
 
+/// 각 경로를 파일 하나로만 처리(디렉터리 재귀 없음). `-c`면 파일별 건수, 아니면 하이라이트 줄.
 fn cmd_grep(ignore_case: bool, line_number: bool, count: bool, pattern: String, paths: Vec<String>) -> io::Result<()> {
     let re = RegexBuilder::new(&pattern)
         .case_insensitive(ignore_case)
@@ -387,6 +398,7 @@ fn cmd_grep(ignore_case: bool, line_number: bool, count: bool, pattern: String, 
 
 // ── sort ──────────────────────────────────────────
 
+/// 숫자로 파싱되면 비교, 아니면 문자열 비교로 대체합니다.
 fn numeric_compare(a: &str, b: &str) -> std::cmp::Ordering {
     let num_a = a.trim().parse::<f64>();
     let num_b = b.trim().parse::<f64>();
@@ -398,6 +410,7 @@ fn numeric_compare(a: &str, b: &str) -> std::cmp::Ordering {
     }
 }
 
+/// stdin 또는 파일들에서 줄을 모은 뒤 정렬; `-u`면 정렬 후 `dedup`.
 fn cmd_sort(reverse: bool, numeric: bool, ignore_case: bool, unique: bool, files: Vec<PathBuf>) -> io::Result<()> {
     let mut lines = Vec::new();
     if files.is_empty() {
@@ -429,6 +442,7 @@ fn cmd_sort(reverse: bool, numeric: bool, ignore_case: bool, unique: bool, files
 
 use walkdir::WalkDir;
 
+/// `*`·`?` 와일드카드 글롭(단순 백트래킹).
 fn glob_match(text: &str, pattern: &str) -> bool {
     let mut ti = 0; let mut pi = 0;
     let mut star_idx = usize::MAX; let mut match_idx = 0;
@@ -444,6 +458,7 @@ fn glob_match(text: &str, pattern: &str) -> bool {
     pi == pc.len()
 }
 
+/// 트리 순회하며 타입·이름·최소 크기 필터를 통과한 경로만 한 줄씩 출력합니다.
 fn cmd_find(name: Option<String>, file_type: Option<String>, min_size: Option<u64>, path: String) {
     for entry in WalkDir::new(&path).into_iter().filter_map(|e| e.ok()) {
         if let Some(ref ft) = file_type {
@@ -469,6 +484,7 @@ fn cmd_find(name: Option<String>, file_type: Option<String>, min_size: Option<u6
 
 // ── ls ──────────────────────────────────────────
 
+/// `-l`일 때 고정 퍼미션 문자열+크기+이름, 아니면 이름만 나열. 숨김 필터는 `-a`로 해제.
 fn cmd_ls(long: bool, all: bool, human_readable: bool, dir: String) {
     let mut entries: Vec<_> = match fs::read_dir(&dir) {
         Ok(rd) => rd.filter_map(|e| e.ok()).collect(),

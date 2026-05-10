@@ -1,3 +1,4 @@
+// clap CLI, 파일·stdin 읽기 및 stdout 출력
 use clap::Parser;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read, stdin, Write};
@@ -20,6 +21,7 @@ struct Cli {
     files: Vec<PathBuf>,
 }
 
+/// 앞에서부터 최대 `n`바이트만 표준 출력으로 복사합니다 (`-c`).
 fn head_bytes<R: Read>(reader: &mut R, n: usize) -> io::Result<()> {
     let mut handle = reader.take(n as u64);
     let mut stdout = io::stdout();
@@ -27,6 +29,7 @@ fn head_bytes<R: Read>(reader: &mut R, n: usize) -> io::Result<()> {
     Ok(())
 }
 
+/// 앞에서부터 `n`줄만 출력합니다 (`-n`, 기본 10).
 fn head_lines<R: BufRead>(reader: &mut R, n: usize) -> io::Result<()> {
     for (i, line) in reader.lines().enumerate() {
         if i >= n {
@@ -38,11 +41,10 @@ fn head_lines<R: BufRead>(reader: &mut R, n: usize) -> io::Result<()> {
     Ok(())
 }
 
-
-
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
+    // 인자 없으면 stdin (`-c`면 바이트, 아니면 줄)
     if cli.files.is_empty() {
         let stdin = stdin();
         let mut reader = BufReader::new(stdin.lock());
@@ -51,6 +53,7 @@ fn main() -> io::Result<()> {
             None => head_lines(&mut reader, cli.lines)?,
         }
     } else {
+        // 여러 파일이면 구분용 헤더 출력 후 각각 head
         for (i, path) in cli.files.iter().enumerate() {
             if cli.files.len() > 1 {
                 if i > 0 {
@@ -72,7 +75,7 @@ fn main() -> io::Result<()> {
         }
     }
 
-    io::stdout().flush()?;
+    io::stdout().flush()?; // 버퍼 비우기
     Ok(())
 }
 

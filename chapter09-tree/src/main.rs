@@ -1,3 +1,4 @@
+// clap CLI, 디렉터리 재귀 순회 후 트리 문자로 출력
 use clap::Parser;
 use std::fs;
 use std::path::Path;
@@ -25,6 +26,7 @@ struct Cli {
     directory: String,
 }
 
+/// `dir` 아래를 재귀적으로 출력합니다. 반환값은 (디렉터리 개수, 파일 개수) 누적입니다.
 fn print_tree(
     dir: &Path,
     prefix: &str,
@@ -37,6 +39,7 @@ fn print_tree(
         .filter_map(|e| e.ok())
         .collect();
 
+    // `-a`가 아니면 `.`로 시작하는 항목 제외
     if !show_hidden {
         entries.retain(|e| {
             !e.file_name().to_string_lossy().starts_with('.')
@@ -55,22 +58,26 @@ fn print_tree(
         let path = entry.path();
         let is_dir = path.is_dir();
 
+        // `-d`: 디렉터리만 출력
         if dirs_only && !is_dir {
             continue;
         }
 
+        // 형제 중 마지막이면 `└`, 아니면 `├`
         let connector = if is_last { "└── " } else { "├── " };
         println!("{}{}{}", prefix, connector, name);
 
         if is_dir {
             total_dirs += 1;
 
+            // `-L`: 다음 깊이가 한계 이상이면 내용은 들여다보지 않음
             if let Some(max) = max_depth {
                 if current_depth + 1 >= max {
                     continue;
                 }
             }
 
+            // 자식 줄 앞에 붙일 세로 막대·공백 (마지막 형제면 막대 생략)
             let new_prefix = if is_last { "    " } else { "│   " };
             let (d, f) = print_tree(
                 &path,
@@ -99,11 +106,13 @@ fn main() {
         std::process::exit(1);
     }
 
+    // 루트 경로 한 줄 후, 깊이 0부터 트리 본문
     println!("{}", path.display());
 
     match print_tree(path, "", 0, cli.max_depth, cli.dirs_only, cli.show_hidden) {
         Ok((dirs, files)) => {
             println!();
+            // 하단 요약 (복수형 영어 접미사 단순 처리)
             println!("{} directory{}, {} file{}",
                 dirs, if dirs != 1 { "ies" } else { "y" },
                 files, if files != 1 { "s" } else { "" });

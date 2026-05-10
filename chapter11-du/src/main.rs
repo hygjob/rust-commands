@@ -1,3 +1,4 @@
+// clap CLI, 디렉터리 재귀 합산과 깊이·`-s`에 따른 출력 제어
 use clap::Parser;
 use std::fs;
 use std::io;
@@ -34,6 +35,7 @@ struct Cli {
     paths: Vec<String>,
 }
 
+/// `-h`일 때 K~T 단위 문자열, 아니면 바이트 숫자.
 fn format_size(bytes: u64, human_readable: bool) -> String {
     if !human_readable {
         return bytes.to_string();
@@ -57,6 +59,7 @@ fn format_size(bytes: u64, human_readable: bool) -> String {
     }
 }
 
+/// 하위까지 크기를 합산해 반환합니다. 디렉터리 자식마다 재귀 호출 후, `-s`가 아니면 자식별 줄을 출력합니다.
 fn du_recursive(
     path: &Path,
     current_depth: usize,
@@ -65,6 +68,7 @@ fn du_recursive(
     summarize: bool,
     human_readable: bool,
 ) -> io::Result<u64> {
+    // `-L`: 링크를 따라 실제 파일·디렉터리 크기; 아니면 링크 자체 메타데이터(디렉터리가 아니면 0에 가깝게 처리)
     let metadata = if follow_links {
         fs::metadata(path)
     } else {
@@ -81,6 +85,7 @@ fn du_recursive(
             .collect();
         entries.sort_by_key(|e| e.file_name().to_string_lossy().to_string());
 
+        // 각 자식 서브트리 크기를 더함; `-d` 범위 안이면 자식 경로별 한 줄 출력
         for entry in entries {
             let entry_path = entry.path();
             let size = du_recursive(
@@ -92,6 +97,7 @@ fn du_recursive(
                 human_readable,
             )?;
 
+            // `-s`면 중간 경로는 출력하지 않고 합만 위로 전달
             if !summarize {
                 let show = max_depth.map_or(true, |max| current_depth + 1 <= max);
                 if show {
@@ -104,7 +110,7 @@ fn du_recursive(
 
         Ok(total)
     } else {
-        // 심볼릭 링크 등 (follow_links가 아니면)
+        // 디렉터리·일반 파일이 아니면(예: `-L` 없이 심볼릭 링크) 사용량에 포함하지 않음
         Ok(0)
     }
 }
@@ -112,6 +118,7 @@ fn du_recursive(
 fn main() {
     let cli = Cli::parse();
 
+    // 인자마다 루트 경로 합계 한 줄(재귀 안에서 자식 줄은 옵션에 따라 추가)
     for path_str in &cli.paths {
         let path = Path::new(path_str);
 

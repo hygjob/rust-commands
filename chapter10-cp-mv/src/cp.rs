@@ -1,3 +1,4 @@
+// clap CLI, 단일·재귀 복사와 대상 경로 규칙 처리
 use clap::Parser;
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -26,7 +27,7 @@ struct Cli {
     paths: Vec<String>,
 }
 
-
+/// `-i`: stderr로 물어보고 y/yes일 때만 덮어쓰기 허용.
 fn confirm_overwrite(path: &str) -> bool {
     eprint!("cp: '{}'를 덮어쓰시겠습니까? (y/n) ", path);
     io::stderr().flush().unwrap();
@@ -38,6 +39,7 @@ fn confirm_overwrite(path: &str) -> bool {
     answer.trim().to_lowercase() == "y" || answer.trim().to_lowercase() == "yes"
 }
 
+/// 일반 파일 한 개를 `fs::copy`로 복사합니다.
 fn copy_file(src: &Path, dst: &Path, cli: &Cli) -> io::Result<()> {
     if dst.exists() && cli.interactive {
         if !confirm_overwrite(&dst.display().to_string()) {
@@ -54,6 +56,7 @@ fn copy_file(src: &Path, dst: &Path, cli: &Cli) -> io::Result<()> {
     Ok(())
 }
 
+/// 디렉터리면 하위까지 재귀; 파일이면 `copy_file`로 위임. `-r` 없이 디렉터리면 메시지 후 스킵.
 fn copy_recursive(src: &Path, dst: &Path, cli: &Cli) -> io::Result<()> {
     if src.is_dir() {
         if !cli.recursive {
@@ -63,6 +66,7 @@ fn copy_recursive(src: &Path, dst: &Path, cli: &Cli) -> io::Result<()> {
 
         fs::create_dir_all(dst)?;
 
+        // 각 자식에 대해 동일 규칙으로 재귀
         for entry in fs::read_dir(src)?.filter_map(|e| e.ok()) {
             let src_path = entry.path();
             let file_name = entry.file_name();
@@ -76,7 +80,6 @@ fn copy_recursive(src: &Path, dst: &Path, cli: &Cli) -> io::Result<()> {
 
     Ok(())
 }
-
 
 fn main() {
     let cli = Cli::parse();

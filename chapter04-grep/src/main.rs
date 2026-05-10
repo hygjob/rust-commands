@@ -1,3 +1,4 @@
+// clap CLI, 정규식·색 하이라이트, 파일/디렉터리 순회
 use clap::Parser;
 use colored::*;
 use regex::{Regex, RegexBuilder};
@@ -40,6 +41,7 @@ struct Cli {
     paths: Vec<String>,
 }
 
+/// 한 줄에서 정규식에 일치하는 부분만 빨간 굵게 표시합니다.
 fn highlight_matches(line: &str, re: &Regex) -> String {
     let mut result = String::new();
     let mut last_end = 0;
@@ -54,6 +56,7 @@ fn highlight_matches(line: &str, re: &Regex) -> String {
     result
 }
 
+/// 단일 파일을 검색합니다. `-A`/`-B`가 있으면 전체를 메모리에 올린 뒤 문맥 줄을 함께 출력합니다.
 fn grep_file(
     filename: &str,
     re: &Regex,
@@ -61,6 +64,7 @@ fn grep_file(
 ) -> io::Result<()> {
     let has_context = cli.before_context.is_some() || cli.after_context.is_some();
 
+    // 문맥 옵션: 파일 전체를 줄 단위로 읽어 인덱스 기준으로 이전/이후 줄 출력
     if has_context {
         let before = cli.before_context.unwrap_or(0);
         let after = cli.after_context.unwrap_or(0);
@@ -76,13 +80,13 @@ fn grep_file(
                 if !cli.count {
                     let start = if i >= before { i - before } else { 0 };
                     for j in start..i {
-                        println!("{}-{}", filename, lines[j]);
+                        println!("{}-{}", filename, lines[j]); // 일치 줄 이전 (컨텍스트)
                     }
                     let highlighted = highlight_matches(line, re);
-                    println!("{}:{}", filename, highlighted);
+                    println!("{}:{}", filename, highlighted); // 일치 줄
                     let end = std::cmp::min(i + after + 1, lines.len());
                     for j in (i + 1)..end {
-                        println!("{}-{}", filename, lines[j]);
+                        println!("{}-{}", filename, lines[j]); // 일치 줄 이후
                     }
                 }
             }
@@ -92,6 +96,7 @@ fn grep_file(
             println!("{}:{}", filename, match_count);
         }
     } else {
+        // 문맥 없음: 한 줄씩 스트리밍으로 검사
         let file = File::open(filename)?;
         let reader = BufReader::new(file);
         let mut match_count = 0;
@@ -105,6 +110,7 @@ fn grep_file(
                     if cli.line_number {
                         println!("{}:{}:{}", filename, i + 1, highlighted);
                     } else if cli.recursive  {
+                        // 여러 파일 구분을 위해 파일명 접두사
                         println!("{}:{}", filename, highlighted);
                     } else {
                         println!("{}", highlighted);
@@ -121,6 +127,7 @@ fn grep_file(
     Ok(())
 }
 
+/// 파일이면 `grep_file`, 디렉터리면 `-r`일 때만 하위 항목을 재귀 검색합니다.
 fn search_path(path: &str, re: &Regex, cli: &Cli) -> io::Result<()> {
     let metadata = fs::metadata(path)?;
 
@@ -134,7 +141,7 @@ fn search_path(path: &str, re: &Regex, cli: &Cli) -> io::Result<()> {
             let entry = entry?;
             let entry_path = entry.path();
             if entry_path.is_dir() {
-                search_path(&entry_path.display().to_string(), re, cli)?;
+                search_path(&entry_path.display().to_string(), re, cli)?; // 하위 디렉터리
             } else {
                 grep_file(&entry_path.display().to_string(), re, cli)?;
             }
@@ -149,6 +156,7 @@ fn search_path(path: &str, re: &Regex, cli: &Cli) -> io::Result<()> {
 fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
+    // `-i`면 대소문자 무시하는 정규식 컴파일
     let re = RegexBuilder::new(&cli.pattern)
         .case_insensitive(cli.ignore_case)
         .build()

@@ -1,3 +1,4 @@
+// clap·walkdir로 트리 순회, 파일 메타데이터로 필터
 use clap::Parser;
 use walkdir::WalkDir;
 use std::fs;
@@ -25,6 +26,7 @@ struct Cli {
     path: String,
 }
 
+/// 와일드카드 `*`(임의 길이)·`?`(한 글자)를 지원하는 단순 글롭 매칭입니다.
 fn glob_match(text: &str, pattern: &str) -> bool {
     let mut ti = 0;
     let mut pi = 0;
@@ -40,6 +42,7 @@ fn glob_match(text: &str, pattern: &str) -> bool {
             ti += 1;
             pi += 1;
         } else if pi < pattern_chars.len() && pattern_chars[pi] == '*' {
+            // `*`가 텍스트의 어디까지 먹을지 나중에 되돌리며 시도
             star_idx = pi;
             match_idx = ti;
             pi += 1;
@@ -52,6 +55,7 @@ fn glob_match(text: &str, pattern: &str) -> bool {
         }
     }
 
+    // 남은 패턴이 `*`뿐이면 매칭 성공
     while pi < pattern_chars.len() && pattern_chars[pi] == '*' {
         pi += 1;
     }
@@ -59,6 +63,7 @@ fn glob_match(text: &str, pattern: &str) -> bool {
     pi == pattern_chars.len()
 }
 
+/// 패턴에 `*`/`?`가 있으면 글롭, 없으면 파일명 전체 일치로 비교합니다.
 fn match_name(file_name: &str, pattern: &str) -> bool {
     if pattern.contains('*') || pattern.contains('?') {
         glob_match(file_name, pattern)
@@ -67,6 +72,7 @@ fn match_name(file_name: &str, pattern: &str) -> bool {
     }
 }
 
+/// `-t`: `f` 파일, `d` 디렉터리, `l` 심볼릭 링크; 그 외 값은 필터하지 않음.
 fn match_type(entry: &walkdir::DirEntry, type_str: &str) -> bool {
     let ft = entry.file_type();
     match type_str {
@@ -77,6 +83,7 @@ fn match_type(entry: &walkdir::DirEntry, type_str: &str) -> bool {
     }
 }
 
+/// 일반 파일일 때만 `metadata` 길이를 돌려줍니다 (`-s` 최소 크기 비교용).
 fn get_file_size(entry: &walkdir::DirEntry) -> Option<u64> {
     if entry.file_type().is_file() {
         fs::metadata(entry.path()).ok().map(|m| m.len())
@@ -103,6 +110,7 @@ fn main() {
     let args = normalize_find_style_argv(std::env::args().collect());
     let cli = Cli::parse_from(args);
 
+    // 깊이 우선으로 모든 항목 순회; 권한 오류 등은 건너뜀
     for entry in WalkDir::new(&cli.path).into_iter().filter_map(|e| e.ok()) {
         // 파일 타입 필터
         if let Some(ref type_str) = cli.file_type {

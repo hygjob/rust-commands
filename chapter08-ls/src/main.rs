@@ -1,3 +1,4 @@
+// clap CLI, 디렉터리 엔트리 읽기·정렬·`-l` 상세 출력 (유닉스 퍼미션 비트 사용)
 use clap::Parser;
 use std::ffi::{OsStr, OsString};
 use std::fs;
@@ -31,6 +32,7 @@ struct Cli {
     dir: String,
 }
 
+/// `st_mode` 하위 9비트로 소유자/그룹/기타 rwx와 타입 접두 `d`/`-`를 만듭니다.
 fn format_permissions(mode: u32, is_dir: bool) -> String {
     let file_type = if is_dir { 'd' } else { '-' };
     format!("{}{}{}{}{}{}{}{}{}{}",
@@ -46,6 +48,7 @@ fn format_permissions(mode: u32, is_dir: bool) -> String {
         if mode & 0o001 != 0 { 'x' } else { '-' })
 }
 
+/// `-h`일 때 K/M/G 단위로, 아니면 바이트 숫자 문자열.
 fn format_size(size: u64, human_readable: bool) -> String {
     if !human_readable {
         return size.to_string();
@@ -66,6 +69,7 @@ fn format_size(size: u64, human_readable: bool) -> String {
     }
 }
 
+/// 수정 시각을 단순 근사(일·월 환산)로 `"Mon DD HH:MM"` 형태 문자열로 만듭니다.
 fn format_time(metadata: &fs::Metadata) -> String {
     let modified = metadata.modified().unwrap_or(
         std::time::UNIX_EPOCH
@@ -93,11 +97,13 @@ fn month_name(m: u64) -> &'static str {
     }
 }
 
+/// 정렬·출력용으로 경로와 파일명을 함께 둡니다.
 struct EntryRow {
     path: PathBuf,
     file_name: OsString,
 }
 
+/// 이름 순(대소문자 무시)으로 정렬합니다. `-a`이면 `.`·`..`를 앞에 두고 나머지와 합칩니다.
 fn prepare_rows(entries: Vec<fs::DirEntry>, list_dir: &Path, all: bool) -> Vec<EntryRow> {
     let mut rows: Vec<EntryRow> = entries
         .into_iter()
@@ -149,6 +155,7 @@ fn main() {
         }
     };
 
+    // 기본: `.`로 시작하는 이름 제외 (`-a`가 아닐 때)
     if !cli.all {
         entries.retain(|e| {
             !e.file_name().to_string_lossy().starts_with('.')
@@ -158,6 +165,7 @@ fn main() {
     let list_path = Path::new(&cli.dir);
     let rows = prepare_rows(entries, list_path, cli.all);
 
+    // `-l`: 퍼미션·크기·시간·이름(디렉터리는 끝에 `/`)
     if cli.long {
         for row in &rows {
             let file_name = &row.file_name;
@@ -174,6 +182,7 @@ fn main() {
                 if metadata.is_dir() { "/" } else { "" });
         }
     } else {
+        // 짧은 형식: 이름만 한 줄에 나열
         for row in &rows {
             let file_name = &row.file_name;
             let name = file_name.to_string_lossy();
@@ -182,6 +191,4 @@ fn main() {
         println!();
     }
 }
-
-
 

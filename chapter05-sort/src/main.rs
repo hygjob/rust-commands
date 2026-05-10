@@ -1,3 +1,4 @@
+// clap CLI, 줄 단위 읽기 후 비교·정렬
 use clap::Parser;
 use std::cmp::Ordering;
 use std::fs::File;
@@ -33,6 +34,7 @@ struct Cli {
     files: Vec<PathBuf>,
 }
 
+/// 공백 트림 후 `f64`로 파싱해 비교합니다. 둘 다 숫자가 아니면 문자열 사전순으로 대체합니다.
 fn numeric_compare(a: &str, b: &str) -> Ordering {
     let num_a = a.trim().parse::<f64>();
     let num_b = b.trim().parse::<f64>();
@@ -45,14 +47,17 @@ fn numeric_compare(a: &str, b: &str) -> Ordering {
     }
 }
 
+/// `-k`: 공백으로 나눈 필드 중 `field_num`번째(1부터)를 정렬 키로 씁니다.
 fn get_field(line: &str, field_num: usize) -> String {
     let fields: Vec<&str> = line.split_whitespace().collect();
     fields.get(field_num - 1).unwrap_or(&"").to_string()
 }
 
+/// stdin 또는 여러 파일에서 줄을 모두 읽어 하나의 벡터로 합칩니다.
 fn read_lines(paths: &[PathBuf]) -> io::Result<Vec<String>> {
     let mut lines = Vec::new();
 
+    // 인자 없으면 표준 입력만
     if paths.is_empty() {
         let stdin = stdin();
         let reader = BufReader::new(stdin.lock());
@@ -60,6 +65,7 @@ fn read_lines(paths: &[PathBuf]) -> io::Result<Vec<String>> {
             lines.push(line?);
         }
     } else {
+        // 파일별로 순차적으로 줄 추가 (열기 실패는 해당 파일만 메시지)
         for path in paths {
             match File::open(path) {
                 Ok(file) => {
@@ -80,6 +86,7 @@ fn main() -> io::Result<()> {
     let cli = Cli::parse();
     let mut lines = read_lines(&cli.files)?;
 
+    // `-k`면 해당 필드만으로 비교, `-n`/`-f`/기본 문자열 비교와 조합; `-r`은 결과 순서 뒤집기
     lines.sort_by(|a, b| {
         let ord = if let Some(k) = cli.key {
             let key_a = get_field(a, k);
@@ -100,6 +107,7 @@ fn main() -> io::Result<()> {
         if cli.reverse { ord.reverse() } else { ord }
     });
 
+    // `-u`: 정렬 후 인접한 동일 줄 제거 (정렬되어 있으므로 같은 줄은 모두 인접)
     if cli.unique {
         lines.dedup();
     }
