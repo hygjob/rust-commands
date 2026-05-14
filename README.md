@@ -18,3 +18,4 @@
 | 14   | **테스트와 배포**     | `assert_cmd` 통합 테스트, `cargo install`, GitHub Actions    |
 | 15   | **통합 멀티툴**       | workspace 구성, 하나의 바이너리에 12개 커맨드 통합           |
 
+funny coding.
